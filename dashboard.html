@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude 用量面板</title>
+<style>
+  :root {
+    --bg-top: #1e2247;
+    --bg-bottom: #14172e;
+    --card: rgba(255,255,255,0.04);
+    --card-border: rgba(255,255,255,0.08);
+    --text: #f3f4f8;
+    --muted: #9ca3c4;
+    --accent: #E07B53;
+    --track: rgba(255,255,255,0.08);
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Helvetica Neue", sans-serif;
+    background: linear-gradient(160deg, var(--bg-top), var(--bg-bottom));
+    color: var(--text);
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .panel {
+    width: 100%;
+    max-width: 420px;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding: 0 4px;
+  }
+  .header .icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .header h1 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0;
+    flex: 1;
+  }
+  .refresh-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--card-border);
+    color: var(--muted);
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.4s ease, background 0.2s;
+  }
+  .refresh-btn:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+  .refresh-btn.spinning { transform: rotate(360deg); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    padding: 22px 20px;
+    backdrop-filter: blur(6px);
+  }
+  .row { margin-bottom: 20px; }
+  .row:last-child { margin-bottom: 0; }
+  .row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .row-label {
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .row-pct {
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .bar-track {
+    height: 8px;
+    border-radius: 6px;
+    background: var(--track);
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: var(--accent);
+    transition: width 0.6s ease;
+  }
+  .row-sub {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .divider {
+    height: 1px;
+    background: var(--card-border);
+    margin: 20px 0;
+  }
+  .footer {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+  .error-banner {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--danger);
+    text-align: center;
+    display: none;
+  }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="header">
+      <div class="icon">🤖</div>
+      <h1>Claude 用量面板</h1>
+      <button class="refresh-btn" id="refreshBtn" title="立即更新">⟳</button>
+    </div>
+    <div class="card">
+      <div class="row">
+        <div class="row-top">
+          <span class="row-label">⚡ Current session</span>
+          <span class="row-pct" id="sessionPct">--%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="sessionBar" style="width:0%"></div></div>
+        <div class="row-sub" id="sessionReset">--</div>
+      </div>
+      <div class="divider"></div>
+      <div class="row">
+        <div class="row-top">
+          <span class="row-label">📅 Weekly limit</span>
+          <span class="row-pct" id="weeklyPct">--%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="weeklyBar" style="width:0%"></div></div>
+        <div class="row-sub" id="weeklyReset">--</div>
+      </div>
+    </div>
+    <div class="error-banner" id="errorBanner"></div>
+    <div class="footer" id="lastUpdated">尚未更新</div>
+  </div>
+
+<script>
+const barColor = (pct) => {
+  if (pct >= 90) return getComputedStyle(document.documentElement).getPropertyValue('--danger');
+  if (pct >= 70) return getComputedStyle(document.documentElement).getPropertyValue('--warn');
+  return getComputedStyle(document.documentElement).getPropertyValue('--accent');
+};
+
+function formatCountdown(resetsAtIso) {
+  const target = new Date(resetsAtIso).getTime();
+  const now = Date.now();
+  let diff = Math.max(0, target - now);
+  const days = Math.floor(diff / 86400000);
+  diff -= days * 86400000;
+  const hours = Math.floor(diff / 3600000);
+  diff -= hours * 3600000;
+  const mins = Math.floor(diff / 60000);
+  diff -= mins * 60000;
+  const secs = Math.floor(diff / 1000);
+  if (days > 0) return `${days} 天 ${hours} 小時後重置`;
+  if (hours > 0) return `${hours} 小時 ${mins} 分後重置`;
+  if (mins > 0) return `${mins} 分 ${secs} 秒後重置`;
+  return `${secs} 秒後重置`;
+}
+
+let latest = null;
+
+function render() {
+  if (!latest || !latest.data) return;
+  const { five_hour, seven_day } = latest.data;
+
+  const sPct = Math.round(five_hour.utilization);
+  document.getElementById('sessionPct').textContent = sPct + '%';
+  document.getElementById('sessionBar').style.width = sPct + '%';
+  document.getElementById('sessionBar').style.background = barColor(sPct);
+  document.getElementById('sessionReset').textContent = formatCountdown(five_hour.resets_at);
+
+  const wPct = Math.round(seven_day.utilization);
+  document.getElementById('weeklyPct').textContent = wPct + '%';
+  document.getElementById('weeklyBar').style.width = wPct + '%';
+  document.getElementById('weeklyBar').style.background = barColor(wPct);
+  document.getElementById('weeklyReset').textContent = formatCountdown(seven_day.resets_at);
+
+  if (latest.fetched_at) {
+    const d = new Date(latest.fetched_at * 1000);
+    document.getElementById('lastUpdated').textContent =
+      '最後更新 ' + d.toLocaleTimeString('zh-TW', { hour12: false });
+  }
+
+  const errBanner = document.getElementById('errorBanner');
+  if (latest.error) {
+    errBanner.style.display = 'block';
+    errBanner.textContent = '更新失敗：' + latest.error;
+  } else {
+    errBanner.style.display = 'none';
+  }
+}
+
+async function fetchUsage() {
+  try {
+    const res = await fetch('/api/usage');
+    latest = await res.json();
+    render();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+document.getElementById('refreshBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  try {
+    const res = await fetch('/api/refresh', { method: 'POST' });
+    latest = await res.json();
+    render();
+  } finally {
+    setTimeout(() => btn.classList.remove('spinning'), 400);
+  }
+});
+
+fetchUsage();
+setInterval(fetchUsage, 30000);
+setInterval(render, 1000);
+</script>
+</body>
+</html>
