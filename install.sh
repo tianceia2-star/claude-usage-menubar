@@ -5,6 +5,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LABEL="com.claude-usage-widget.app"
 PLIST_PATH="$HOME/Library/LaunchAgents/${LABEL}.plist"
+LOG_DIR="$HOME/Library/Logs/claude-usage-widget"
 PYTHON_BIN="$(command -v python3)"
 
 if [ -z "$PYTHON_BIN" ]; then
@@ -15,8 +16,13 @@ fi
 echo "安裝相依套件..."
 "$PYTHON_BIN" -m pip install --user -r "$REPO_DIR/requirements.txt"
 
+# log 檔故意放在 ~/Library/Logs 而不是專案資料夾：如果專案資料夾在
+# ~/Documents/~/Desktop/~/Downloads 底下，macOS 的 TCC 隱私保護可能會讓
+# launchd 在開機時建立不了 log 檔，導致整個 LaunchAgent 以 EX_CONFIG 失敗、
+# 不斷重開機迴圈。
 echo "產生 LaunchAgent 設定：$PLIST_PATH"
 mkdir -p "$HOME/Library/LaunchAgents"
+mkdir -p "$LOG_DIR"
 cat > "$PLIST_PATH" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -39,9 +45,9 @@ cat > "$PLIST_PATH" <<EOF
 		<false/>
 	</dict>
 	<key>StandardOutPath</key>
-	<string>${REPO_DIR}/menubar.log</string>
+	<string>${LOG_DIR}/menubar.log</string>
 	<key>StandardErrorPath</key>
-	<string>${REPO_DIR}/menubar.err.log</string>
+	<string>${LOG_DIR}/menubar.err.log</string>
 </dict>
 </plist>
 EOF

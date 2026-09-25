@@ -191,7 +191,23 @@ function formatCountdown(resetsAtIso) {
 let latest = null;
 
 function render() {
-  if (!latest || !latest.data) return;
+  if (!latest) return;
+
+  // 錯誤要一定顯示出來，不能因為還沒抓到資料（data 是 null）就整個跳過，
+  // 不然切換帳號後如果一直抓失敗，畫面只會卡在 --%，看起來像沒反應。
+  const errBanner = document.getElementById('errorBanner');
+  if (latest.error) {
+    errBanner.style.display = 'block';
+    errBanner.textContent = '更新失敗：' + latest.error;
+  } else {
+    errBanner.style.display = 'none';
+  }
+
+  if (latest.token_hint) {
+    document.getElementById('lastUpdated').title = '目前 token 末碼：' + latest.token_hint;
+  }
+
+  if (!latest.data) return;
   const { five_hour, seven_day } = latest.data;
 
   const sPct = Math.round(five_hour.utilization);
@@ -210,14 +226,6 @@ function render() {
     const d = new Date(latest.fetched_at * 1000);
     document.getElementById('lastUpdated').textContent =
       '最後更新 ' + d.toLocaleTimeString('zh-TW', { hour12: false });
-  }
-
-  const errBanner = document.getElementById('errorBanner');
-  if (latest.error) {
-    errBanner.style.display = 'block';
-    errBanner.textContent = '更新失敗：' + latest.error;
-  } else {
-    errBanner.style.display = 'none';
   }
 }
 

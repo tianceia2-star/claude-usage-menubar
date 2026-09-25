@@ -120,12 +120,14 @@ class UsageApp(rumps.App):
             if w_pct is not None else "Weekly: --"
         )
         fetched_at = snap.get("fetched_at")
+        hint = snap.get("token_hint")
+        hint_suffix = f"・token …{hint}" if hint else ""
         if fetched_at:
             t = datetime.fromtimestamp(fetched_at).strftime("%H:%M:%S")
             suffix = f"（{snap['error']}）" if snap.get("error") else ""
-            self.updated_item.title = f"最後更新 {t}{suffix}"
+            self.updated_item.title = f"最後更新 {t}{suffix}{hint_suffix}"
         else:
-            self.updated_item.title = "尚未更新"
+            self.updated_item.title = f"尚未更新{hint_suffix}"
 
 
 def main():

@@ -28,6 +28,7 @@ state = {
     "data": None,
     "fetched_at": None,
     "error": None,
+    "token_hint": None,
 }
 
 
@@ -85,7 +86,16 @@ def get_valid_access_token():
     if is_expired(creds):
         trigger_cli_refresh()
         creds = read_keychain_credentials()
-    return creds["accessToken"]
+    token = creds["accessToken"]
+    if not token:
+        raise RuntimeError(
+            "OAuth session 已失效且無法自動刷新，請重新用 `claude` 登入一次"
+        )
+    # 記錄目前鑰匙圈裡是哪個 token（只留末 6 碼），用來判斷切換帳號後
+    # 鑰匙圈是否真的換成新帳號，而不是還在讀到舊的殘留 token。
+    with state_lock:
+        state["token_hint"] = token[-6:]
+    return token
 
 
 def fetch_usage():
@@ -127,6 +137,7 @@ def get_state_snapshot():
             "data": state["data"],
             "fetched_at": state["fetched_at"],
             "error": state["error"],
+            "token_hint": state["token_hint"],
         }
 
 

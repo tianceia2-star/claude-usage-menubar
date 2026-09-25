@@ -63,6 +63,18 @@ python3 usage_server.py
 
 會移除 LaunchAgent 設定並停止小工具（不會動到你的 Claude Code 登入憑證）。
 
+## 疑難排解
+
+**開機後選單列圖示沒出現 / LaunchAgent 一直失敗（`EX_CONFIG`）**
+
+如果這個資料夾放在 `~/Documents`、`~/Desktop` 或 `~/Downloads` 底下，macOS 的隱私保護（TCC）可能會擋掉 `launchd` 在開機當下建立 log 檔的動作，導致 LaunchAgent 啟動失敗並不斷重試。`install.sh` 已經把 log 檔固定寫到 `~/Library/Logs/claude-usage-widget/`（不受此限制的路徑）來避開這個問題；如果你是手動寫 plist，記得也把 `StandardOutPath`/`StandardErrorPath` 指到專案資料夾以外的地方。
+
+可以用這個指令檢查目前狀態：
+
+```bash
+launchctl print gui/$(id -u)/com.claude-usage-widget.app | grep -E "state|last exit"
+```
+
 ## 圖示顏色
 
 - 🟢 用量 < 70%
